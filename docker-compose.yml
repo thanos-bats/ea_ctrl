@@ -1,0 +1,21 @@
+version: '3'
+
+services:
+  ces_emotion_ctrl:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ces_emotion_ctrl:1.2
+    container_name: ces_emotion_ctrl
+    restart: always
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=broker:29092
+      - NEO4J_URL=http://neo4j-api:4567
+      - EN_URL=http://ces_emotion_eng
+      - GR_URL=http://ces_emotion_gr
+      # - KAFKA_BOOTSTRAP_SERVERS=160.40.53.99:9092
+
+networks:
+  default:
+    name: cesagram_network
+    external: true
