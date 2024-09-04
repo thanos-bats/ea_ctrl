@@ -93,8 +93,12 @@ def main():
                 continue
             
             for msg in emotion_outputs:
+                print(f'msg:{msg}')
                 documentId = msg.get("id")
                 entities = msg.get("entities")
+                print(f'entities: {entities}')
+                if entities is None:
+                    continue
                 entity_data = db.create_entity(entities.get("confidence"), entities.get("prediction"))
                 if not entity_data:
                     continue
