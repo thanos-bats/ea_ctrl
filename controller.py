@@ -24,7 +24,7 @@ def kafka_msg_structure(source):
     }
     return msg
 
-def generate_sentiment_done_message_data(documentId, taskId, jobId): 
+def generate_done_message_data(documentId, taskId, jobId): 
     msg_data = {
         "taskId": taskId,
         "jobId": jobId,
@@ -57,30 +57,30 @@ def main():
 
             # Parse the JSON message
             json_msg = json.loads(msgs.value().decode('utf-8'))
-            msg_header =  json_msg.get("header")
+            msg_header = json_msg.get("header")
             msg_body = json_msg.get("body").get("data")
          
             inputs = []
             kafka_data = {"data": []}
             for msg in msg_body:
-                resp = db.get_document( msg["documentId"])
-                if resp is None: # Check if the document exists
+                resp = db.get_document(msg["documentId"])
+                if resp is None:  # Check if the document exists
                     continue
                 
                 content = resp["content"]
                 lang = resp["lang"]
                 print(f"> Received msg: {content} | {lang}")
-                if resp["lang"] == "en" or resp["lang"] == 'el': # If the lang is on EN I will call the NER_ENGLISH or If the lang in on GR I will call the NER_GREEK
+                if resp["lang"] == "en" or resp["lang"] == 'el':  # Process only English or Greek content
                     inputs.append({"id": msg["documentId"], "content": content, "lang": resp["lang"]})
                 else:
                     continue
 
-                kafka_data["data"].append(generate_sentiment_done_message_data(msg["documentId"], msg["taskId"], msg["jobId"]))
+                kafka_data["data"].append(generate_done_message_data(msg["documentId"], msg["taskId"], msg["jobId"]))
 
             if len(inputs) == 0:
                 continue
             
-            # Sentiment tool
+            # Emotion analysis
             emotion_outputs = []
             for msg in inputs:
                 output = emotion.get_emotion_outputs(msg.get("content"), msg.get("lang"))
@@ -99,11 +99,15 @@ def main():
                 print(f'entities: {entities}')
                 if entities is None:
                     continue
-                entity_data = db.create_entity(entities.get("confidence"), entities.get("prediction"))
+                entity_data = db.create_entity(
+                    confidence=entities.get("confidence"),
+                    prediction=entities.get("prediction"),
+                    source=msg_header.get("source", "unknown")
+                )
                 if not entity_data:
                     continue
                     
-                relationship = db.create_relationship(documentId, entity_data["id"], "hasEmotion")
+                _ = db.create_relationship(documentId, entity_data["id"], "hasEmotion")
 
             kafka_msg = kafka_msg_structure(msg_header["source"])
             kafka_msg["body"] = kafka_data
