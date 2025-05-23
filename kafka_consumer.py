@@ -12,15 +12,19 @@ class ConsumerHandler:
         self.consumer = Consumer(config)
         self.consumer.subscribe(topics)
 
-    def poll(self, timeout=0):
+    def poll(self, timeout=1.0):
         """ Read one message (or callback) from the bus if available.
 
         Reads only from the subscribed topics.
 
         Return the message/callback/None(if there is not a message or callback on bus).
         """
-        return self.consumer.poll(timeout=timeout)
+        return self.consumer.poll(timeout)
     
+    def close(self):
+        """Close the consumer connection."""
+        self.consumer.close()
+
 if __name__ == '__main__':
     topic = os.getenv('NER_TOPIC')
     cons_config = {

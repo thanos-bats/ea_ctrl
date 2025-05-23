@@ -2,23 +2,20 @@ import json
 import os
 from dotenv import load_dotenv
 from kafka_consumer import ConsumerHandler
+from kafka_producer import ProducerHandler
+from emotionHandler import emotionHandler
+from datastore_handler import DatastoreHandler
 from confluent_kafka import KafkaError
 
-from kafka_producer import ProducerHandler
-from datastore_handler import DatastoreHandler
-from emotionHandler import emotionHandler
-from datetime import datetime, timezone
-
+# Load environment variables
 load_dotenv()
 
 def kafka_msg_structure(source):
-    current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
-    formatted_utc_time = current_utc_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
     msg = {
         "header": {
             "topicName": os.getenv('EMOTION_TOPIC'),
             "source": source,
-            "sentUTC": formatted_utc_time,
+            "sentUTC": "2024-02-20T10:00:00.000Z",
         },
         "body": {}
     }
@@ -36,7 +33,7 @@ def main():
     cons_config = {
         'bootstrap.servers': os.getenv('KAFKA_BOOTSTRAP_SERVERS'),
         'group.id': os.getenv('GROUP_ID'),
-        'auto.offset.reset': 'earliest'
+        'auto.offset.reset': 'latest'
     }
     consumer = ConsumerHandler([os.getenv('CRAWLER_TOPIC')], cons_config)
     db = DatastoreHandler()
@@ -54,7 +51,7 @@ def main():
                 else:
                     print('Error: {}'.format(msgs.error()))
                     break
-
+            
             # Parse the JSON message
             json_msg = json.loads(msgs.value().decode('utf-8'))
             msg_header = json_msg.get("header")
@@ -69,21 +66,21 @@ def main():
                 
                 content = resp["content"]
                 lang = resp["lang"]
-                print(f"> Received msg: {content} | {lang}")
+                print(f"> Received msg {lang}\n")
                 if resp["lang"] == "en" or resp["lang"] == 'el':  # Process only English or Greek content
                     inputs.append({"id": msg["documentId"], "content": content, "lang": resp["lang"]})
                 else:
                     continue
-
+                
                 kafka_data["data"].append(generate_done_message_data(msg["documentId"], msg["taskId"], msg["jobId"]))
 
             if len(inputs) == 0:
                 continue
-            
+                
             # Emotion analysis
             emotion_outputs = []
             for msg in inputs:
-                output = emotion.get_emotion_outputs(msg.get("content"), msg.get("lang"))
+                output = emotion.get_emotion(msg.get("content"), msg.get("lang"))
 
                 if (not output): 
                     continue
@@ -91,18 +88,22 @@ def main():
 
             if len(emotion_outputs) == 0:
                 continue
-            
+                
             for msg in emotion_outputs:
-                print(f'msg:{msg}')
+                print(f'msg:{msg}\n')
                 documentId = msg.get("id")
                 entities = msg.get("entities")
-                print(f'entities: {entities}')
-                if entities is None:
+                print(f'entities: {entities}\n')
+                
+                # Skip if entities is None or contains an error
+                if entities is None or "error" in entities:
+                    print(f"  - Skipping document {documentId}: {entities.get('error', 'No entities found')}")
                     continue
+                    
                 entity_data = db.create_entity(
                     confidence=entities.get("confidence"),
                     prediction=entities.get("prediction"),
-                    source=msg_header.get("source", "unknown")
+                    source=msg_header.get("source", "unknown").lower()
                 )
                 if not entity_data:
                     continue

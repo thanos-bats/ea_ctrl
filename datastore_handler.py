@@ -24,14 +24,14 @@ class DatastoreHandler:
             print(f"Error making GET request: {e}")
             return None
     
-    def create_entity(self, confidence, prediction):
+    def create_entity(self, confidence, prediction, source):
         current_utc_time = datetime.utcnow().replace(tzinfo=timezone.utc)
         formatted_utc_time = current_utc_time.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
         input = {
             "domainId":f"emotion:{prediction.lower()}:{str(uuid.uuid4())}",
             "title": None,
             "name":prediction,
-            "source":"web",
+            "source":source,
             "type":f"emotion:{prediction.lower()}",
             "discoveredAt": formatted_utc_time,
             "attributes":{

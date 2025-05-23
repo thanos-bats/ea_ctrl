@@ -1,36 +1,44 @@
 import requests
 import os
+import logging
 from dotenv import load_dotenv
 
+# Load environment variables from .env file
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class emotionHandler:
     def __init__(self):
-        self.greek_url = os.getenv('GR_EMOTION_URL') + ":" + os.getenv('GR_EMOTION_PORT') + "/" + os.getenv('GR_EMOTION_ENDPOINT')  # Adjust port as needed
-        self.english_url = os.getenv('EN_EMOTION_URL') + ":" + os.getenv('EN_EMOTION_PORT') + "/" + os.getenv('EN_EMOTION_ENDPOINT')  # Adjust port as needed
+        # English emotion service configuration
+        self.english_url = os.getenv('EN_EMOTION_URL')
+        logger.info(f"English emotion service URL: {self.english_url}")
 
-    def get_emotion_outputs(self, text, lang):
+        # Greek emotion service configuration
+        self.greek_url = os.getenv('GR_EMOTION_URL')
+        logger.info(f"Greek emotion service URL: {self.greek_url}")
+
+    def get_emotion(self, text, language):
         try:
-            # Prepare the input data
-            input_data = {
-                "text": text
-            }
-
-            # Select endpoint based on language
-            emotion_url = self.greek_url if lang == 'el' else self.english_url
-
-            # Make POST request to the appropriate endpoint
-            response = requests.post(emotion_url, json=input_data)
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result  # Returns {'prediction': 'emotion', 'confidence': probability}
+            if language == 'en':
+                url = self.english_url
+            elif language == 'el':
+                url = self.greek_url
             else:
-                print(f"Error: Received status code {response.status_code}")
+                logger.warning(f"Unsupported language: {language}")
                 return None
 
+            logger.info(f"Requesting emotion analysis for {language} text")
+            response = requests.post(url, json={'text': text})
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error in emotion analysis request: {str(e)}")
+            return None
         except Exception as e:
-            print(f"Error in emotion analysis: {str(e)}")
+            logger.error(f"Unexpected error in emotion analysis: {str(e)}")
             return None
 
     
